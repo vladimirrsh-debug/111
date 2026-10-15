@@ -1,0 +1,22 @@
+import {z} from 'zod';
+export const units=['г','кг','мл','л','шт'] as const;
+export type Unit=typeof units[number];
+const number=z.number().finite().min(0).max(1e12);
+const positive=number.positive();
+const text=z.string().trim().min(1,'Укажите название').max(200);
+const timestamp=z.string().datetime();
+export const productSchema=z.object({id:text,name:text,category:z.string().max(200),packagePrice:number,packageQuantity:positive,packageUnit:z.enum(units),notes:z.string().max(10000),isArchived:z.boolean(),createdAt:timestamp,updatedAt:timestamp});
+export type Product=z.infer<typeof productSchema>;
+export const ingredientSchema=z.object({id:text,productId:text,productNameSnapshot:text,quantity:positive,unit:z.enum(units),packagePriceSnapshot:number,packageQuantitySnapshot:positive,packageUnitSnapshot:z.enum(units)});
+export type Ingredient=z.infer<typeof ingredientSchema>;
+export const expenseSchema=z.object({id:text,name:text,calculationType:z.enum(['fixed','percent']),value:number});
+export const recipeSchema=z.object({id:text,name:text,category:z.string().max(200),description:z.string().max(10000),ingredients:z.array(ingredientSchema).min(1,'Добавьте ингредиент').max(1000),outputQuantity:number,outputUnit:z.enum(units),portions:number,portionSize:number,lossPercent:number.max(100),packaging:z.object({mode:z.enum(['total','portion','item']),value:number}),additionalCosts:z.array(expenseSchema).max(1000),pricingMode:z.enum(['markup','margin','manual']),markupPercent:number,targetMarginPercent:number.lt(100,'Маржа должна быть меньше 100%'),manualSellingPrice:number,roundingMode:z.union([z.literal(0),z.literal(1),z.literal(5),z.literal(10),z.literal(50),z.literal(100)]),createdAt:timestamp,updatedAt:timestamp,isArchived:z.boolean()});
+export type Recipe=z.infer<typeof recipeSchema>;
+export const settingsSchema=z.object({id:z.literal('main'),currency:z.enum(['RUB','USD','EUR']),defaultMarkupPercent:number,defaultMarginPercent:number.lt(100),defaultLossPercent:number.max(100),defaultRoundingMode:recipeSchema.shape.roundingMode,defaultAdditionalCosts:z.array(expenseSchema),theme:z.enum(['light','dark','system']),onboardingCompleted:z.boolean()});
+export type Settings=z.infer<typeof settingsSchema>;
+export const defaults:Settings={id:'main',currency:'RUB',defaultMarkupPercent:100,defaultMarginPercent:60,defaultLossPercent:0,defaultRoundingMode:0,defaultAdditionalCosts:[],theme:'light',onboardingCompleted:false};
+export const productCategories=['Без категории','Молочные продукты','Мясо и птица','Рыба и морепродукты','Овощи','Фрукты и ягоды','Бакалея','Мука и ингредиенты для выпечки','Кондитерские ингредиенты','Напитки','Масла и жиры','Соусы и специи','Упаковка','Прочее'];
+export const recipeCategories=['Без категории','Первые блюда','Основные блюда','Гарниры','Салаты','Выпечка','Торты','Печенье','Десерты','Напитки','Соусы','Заготовки','Прочее'];
+export const id=()=>crypto.randomUUID();
+export const now=()=>new Date().toISOString();
+export function newRecipe(s:Settings=defaults):Recipe {return {id:id(),name:'',category:'Без категории',description:'',ingredients:[],outputQuantity:0,outputUnit:'г',portions:0,portionSize:0,lossPercent:s.defaultLossPercent,packaging:{mode:'total',value:0},additionalCosts:structuredClone(s.defaultAdditionalCosts),pricingMode:'markup',markupPercent:s.defaultMarkupPercent,targetMarginPercent:s.defaultMarginPercent,manualSellingPrice:0,roundingMode:s.defaultRoundingMode,createdAt:now(),updatedAt:now(),isArchived:false};}

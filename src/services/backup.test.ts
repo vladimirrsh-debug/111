@@ -1,0 +1,2 @@
+import {describe,it,expect} from 'vitest';import {parseBackup} from './backup';
+describe('резервные копии',()=>{it('отклоняет повреждённый JSON без исключения наружу',()=>expect(()=>parseBackup('{bad')).toThrow('Резервная копия повреждена'));it('отклоняет неподдерживаемую версию',()=>expect(()=>parseBackup(JSON.stringify({version:2,createdAt:new Date().toISOString(),products:[],recipes:[]}))).toThrow('Резервная копия повреждена'));});

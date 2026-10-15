@@ -1,0 +1,21 @@
+import type {Ingredient,Product,Recipe,Unit} from './models';
+export function checked(n:number,positive=false):number {if(!Number.isFinite(n)||n<0||(positive&&n===0)||n>1e15)throw Error('Укажите корректное число'+(positive?' больше нуля':''));return n;}
+export const dimension=(u:Unit)=>u==='г'||u==='кг'?'mass':u==='л'||u==='мл'?'volume':'count';
+export const baseUnit=(u:Unit):Unit=>dimension(u)==='mass'?'г':dimension(u)==='volume'?'мл':'шт';
+export const factor=(u:Unit)=>u==='кг'||u==='л'?1000:1;
+export function convert(q:number,from:Unit,to:Unit){if(dimension(from)!==dimension(to))throw Error('Несовместимые единицы измерения');return checked(checked(q)*factor(from)/factor(to));}
+export function calculateUnitCost(price:number,quantity:number,unit:Unit){return checked(checked(price)/(checked(quantity,true)*factor(unit)));}
+export function calculateIngredientCost(i:Ingredient){if(dimension(i.unit)!==dimension(i.packageUnitSnapshot))throw Error('Несовместимые единицы измерения');return checked(calculateUnitCost(i.packagePriceSnapshot,i.packageQuantitySnapshot,i.packageUnitSnapshot)*checked(i.quantity,true)*factor(i.unit));}
+export function snapshot(p:Product):Ingredient {if(p.isArchived)throw Error('Архивный продукт недоступен');return {id:crypto.randomUUID(),productId:p.id,productNameSnapshot:p.name,quantity:1,unit:baseUnit(p.packageUnit),packagePriceSnapshot:p.packagePrice,packageQuantitySnapshot:p.packageQuantity,packageUnitSnapshot:p.packageUnit};}
+export const sum=(values:number[])=>checked(values.reduce((a,b)=>a+checked(b),0));
+export const calculateLossCost=(cost:number,percent:number)=>checked(checked(cost)*checked(percent)/100);
+export function calculateSellingPriceByMarkup(cost:number,markup:number){return checked(checked(cost)*(1+checked(markup)/100));}
+export function calculateSellingPriceByMargin(cost:number,margin:number){checked(margin);if(margin>=100)throw Error('Маржа должна быть меньше 100%');return checked(checked(cost)/(1-margin/100));}
+export function roundSellingPrice(price:number,step:number){checked(price);checked(step);return step?checked(Math.ceil(price/step)*step):price;}
+export function pricing(cost:number,r:Pick<Recipe,'pricingMode'|'markupPercent'|'targetMarginPercent'|'manualSellingPrice'|'roundingMode'>){const raw=r.pricingMode==='markup'?calculateSellingPriceByMarkup(cost,r.markupPercent):r.pricingMode==='margin'?calculateSellingPriceByMargin(cost,r.targetMarginPercent):checked(r.manualSellingPrice);const selling=roundSellingPrice(raw,r.roundingMode),profit=selling-cost;return {raw,selling,profit,margin:selling?profit/selling*100:null,markup:cost?profit/cost*100:null};}
+export function calculate(r:Recipe){if(!r.ingredients.length)throw Error('Добавьте хотя бы один ингредиент');const ingredients=sum(r.ingredients.map(calculateIngredientCost));const loss=calculateLossCost(ingredients,r.lossPercent);if(r.lossPercent>100)throw Error('Потери не могут превышать 100%');const expenses=r.additionalCosts.map(e=>e.calculationType==='fixed'?checked(e.value):calculateLossCost(ingredients,e.value));let count=1;if(r.packaging.mode==='portion')count=checked(r.portions,true);if(r.packaging.mode==='item'){if(r.outputUnit!=='шт')throw Error('Для упаковки изделия укажите выход в штуках');count=checked(r.outputQuantity,true);}const packaging=checked(checked(r.packaging.value)*count);const total=sum([ingredients,loss,packaging,...expenses]);const output=checked(r.outputQuantity)*factor(r.outputUnit);const portions=checked(r.portions);const perBase=output?total/output:null;return {ingredients,loss,expenses,packaging,total,perPortion:portions?total/portions:null,perBase,per100:perBase===null?null:perBase*100,per1000:perBase===null?null:perBase*1000,customPortion:perBase===null?null:perBase*checked(r.portionSize),...pricing(total,r)};}
+export const money=(n:number,currency='RUB',digits=2)=>new Intl.NumberFormat('ru-RU',{style:'currency',currency,minimumFractionDigits:digits,maximumFractionDigits:digits}).format(n);
+export const decimal=(n:number)=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:4}).format(n);
+export function validateRecipe(r:Recipe){const result=recipeSchemaCheck(r);calculate(result);return result;}
+import {recipeSchema} from './models';
+function recipeSchemaCheck(r:Recipe){return recipeSchema.parse(r);}
